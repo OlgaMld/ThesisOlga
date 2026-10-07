@@ -1,0 +1,59 @@
+CREATE DATABASE IF NOT EXISTS dbolga CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE dbolga;
+
+CREATE TABLE IF NOT EXISTS admin (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(200) NOT NULL UNIQUE,
+  password VARCHAR(200) NOT NULL,
+  fullname VARCHAR(200) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(200) NOT NULL UNIQUE,
+  password VARCHAR(200) NOT NULL,
+  fullname VARCHAR(400) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS aggelies (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  id_admin INT NOT NULL,
+  title VARCHAR(400) NOT NULL,
+  description TEXT NOT NULL,
+  public INT(1) NOT NULL DEFAULT 1,
+  CONSTRAINT fk_aggelies_admin
+    FOREIGN KEY (id_admin) REFERENCES admin(id)
+    ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS cv (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  id_user INT NOT NULL,
+  title VARCHAR(400) NOT NULL,
+  cv_file VARCHAR(400) NOT NULL,
+  date_upload DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  public INT(1) NOT NULL DEFAULT 1,
+  CONSTRAINT fk_cv_user
+    FOREIGN KEY (id_user) REFERENCES users(id)
+    ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS cv_ggelies (
+  id_cv INT NOT NULL,
+  id_agg INT NOT NULL,
+  api VARCHAR(400) DEFAULT NULL,
+  response TEXT DEFAULT NULL,
+  date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  grade INT(11) DEFAULT NULL,
+  PRIMARY KEY (id_cv, id_agg),
+  CONSTRAINT fk_cvggelies_cv
+    FOREIGN KEY (id_cv) REFERENCES cv(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_cvggelies_agg
+    FOREIGN KEY (id_agg) REFERENCES aggelies(id)
+    ON DELETE CASCADE
+);
+
+INSERT INTO admin (email, password, fullname)
+SELECT 'admin@appcv.local', 'admin123', 'System Admin'
+WHERE NOT EXISTS (SELECT 1 FROM admin WHERE email = 'admin@appcv.local');
