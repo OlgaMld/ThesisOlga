@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -14,6 +13,7 @@ import {
   TextField,
   Typography
 } from "@mui/material";
+import { useEffect, useState } from "react";
 import { api, getUploadUrl } from "../api/http";
 
 export function CandidateDashboard() {
@@ -184,13 +184,25 @@ export function CandidateDashboard() {
 
       <Stack spacing={2}>
         <Typography variant="h4">Διαθέσιμες Αγγελίες</Typography>
-        <Grid container spacing={3}>
+        <Grid container spacing={3} sx={{ display: "flex", alignItems: "stretch" }}>
           {jobs.map((job) => (
-            <Grid item xs={12} md={6} key={job.id}>
-              <Card sx={{ height: "100%" }}>
-                <CardContent>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                    <Typography variant="h5">{job.title}</Typography>
+            <Grid
+              item
+              xs={12}
+              md={6}
+              key={job.id}
+              sx={{
+                minWidth: 0,
+                flex: "0 0 50%",
+                maxWidth: "50%"
+              }}
+            >
+              <Card sx={{ height: "100%", minWidth: 0 }}>
+                <CardContent sx={{ minWidth: 0 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2} sx={{ minWidth: 0 }}>
+                    <Typography variant="h5" sx={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                      {job.title}
+                    </Typography>
                     <Chip label={job.admin_name} />
                   </Stack>
                   <Typography color="text.secondary" sx={{ mt: 2, whiteSpace: "pre-wrap" }}>
@@ -215,14 +227,26 @@ export function CandidateDashboard() {
             <Typography color="text.secondary">Δεν έχεις κάνει ακόμη αιτήσεις.</Typography>
           </Paper>
         )}
-        <Grid container spacing={3}>
+        <Grid container spacing={3} sx={{ display: "flex", alignItems: "stretch" }}>
           {applications.map((application) => (
-            <Grid item xs={12} md={6} key={`${application.id_cv}-${application.id_agg}`}>
-              <Card sx={{ height: "100%" }}>
-                <CardContent>
-                  <Stack spacing={1.5}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                      <Typography variant="h5">{application.job_title}</Typography>
+            <Grid
+              item
+              xs={12}
+              md={6}
+              key={`${application.id_cv}-${application.id_agg}`}
+              sx={{
+                minWidth: 0,
+                flex: "0 0 50%",
+                maxWidth: "50%"
+              }}
+            >
+              <Card sx={{ height: "100%", minWidth: 0 }}>
+                <CardContent sx={{ minWidth: 0 }}>
+                  <Stack spacing={1.5} sx={{ minWidth: 0 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2} sx={{ minWidth: 0 }}>
+                      <Typography variant="h5" sx={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                        {application.job_title}
+                      </Typography>
                       <Chip
                         color={application.grade >= 70 ? "success" : application.grade >= 40 ? "warning" : "default"}
                         label={application.grade != null ? `Score: ${application.grade}` : "Σε αναμονή"}

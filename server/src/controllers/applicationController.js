@@ -1,6 +1,40 @@
+import fs from "fs";
 import path from "path";
 import { pool } from "../config/db.js";
 import { evaluateApplication } from "../services/llmService.js";
+
+function resolveCvFilePath(cvFileValue) {
+  if (!cvFileValue) {
+    return null;
+  }
+
+  const candidates = [
+    path.resolve(cvFileValue),
+    path.resolve("uploads", path.basename(cvFileValue)),
+    path.resolve("uploads", cvFileValue.replace(/^uploads[\\/]/, "")),
+    path.resolve("uploads", cvFileValue.split("uploads/").at(-1) || cvFileValue)
+  ];
+
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const key = candidate.replace(/\\/g, "/");
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  const uploadDir = path.resolve("uploads");
+  const entries = fs.existsSync(uploadDir) ? fs.readdirSync(uploadDir) : [];
+  const basename = path.basename(cvFileValue).toLowerCase();
+  const match = entries.find((entry) => entry.toLowerCase().includes(basename.toLowerCase().replace(/[^a-z0-9._-]/g, "")));
+
+  if (match) {
+    return path.resolve(uploadDir, match);
+  }
+
+  return null;
+}
 
 export async function applyToJob(req, res) {
   const { jobId, cvId } = req.body;
@@ -79,25 +113,43 @@ export async function evaluateJobApplications(req, res) {
   );
 
   const evaluated = [];
+  const providerErrors = [];
+
   for (const application of applications) {
+    const cvFilePath = resolveCvFilePath(application.cv_file);
+    if (!cvFilePath) {
+      throw new Error(`Το βιογραφικό ${application.cv_title} δεν βρέθηκε στο filesystem.`);
+    }
+
     const result = await evaluateApplication({
       jobTitle: job.title,
       jobDescription: job.description,
-      cvFilePath: path.resolve(application.cv_file),
+      cvFilePath,
       provider: provider
     });
+
+    const responseText = result.providerError
+      ? `${result.summary} (API error: ${result.providerError})`
+      : result.summary;
+
+    if (result.providerError) {
+      providerErrors.push({
+        provider,
+        message: result.providerError
+      });
+    }
 
     await pool.query(
       `UPDATE cv_ggelies
        SET api = ?, response = ?, grade = ?, date = CURRENT_TIMESTAMP
        WHERE id_cv = ? AND id_agg = ?`,
-      [provider, result.summary, result.score, application.id_cv, jobId]
+      [provider, responseText, result.score, application.id_cv, jobId]
     );
 
     evaluated.push({
       ...application,
       grade: result.score,
-      response: result.summary
+      response: responseText
     });
   }
 
@@ -106,7 +158,8 @@ export async function evaluateJobApplications(req, res) {
       id: job.id,
       title: job.title
     },
-    applications: evaluated
+    applications: evaluated,
+    providerErrors
   });
 }
 

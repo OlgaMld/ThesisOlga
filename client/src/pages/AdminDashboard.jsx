@@ -4,8 +4,8 @@ import {
   Button,
   Card,
   CardContent,
+  CircularProgress,
   Divider,
-  Grid,
   MenuItem,
   Paper,
   Stack,
@@ -23,6 +23,14 @@ export function AdminDashboard() {
   const [error, setError] = useState("");
   const [form, setForm] = useState({ title: "", description: "", public: 1 });
   const [selectedProvider, setSelectedProvider] = useState("mock");
+  const [providerStatus, setProviderStatus] = useState({
+    mock: true,
+    openai: false,
+    gemini: false,
+    claude: false,
+    mistral: false
+  });
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   const loadJobs = async () => {
     const data = await api.get("/jobs/mine");
@@ -39,6 +47,26 @@ export function AdminDashboard() {
 
   useEffect(() => {
     loadJobs().catch((err) => setError(err.message));
+
+    api
+      .get("/llm-status")
+      .then(({ providers = [] }) => {
+        const statusMap = providers.reduce((acc, provider) => {
+          acc[provider.key] = Boolean(provider.enabled);
+          return acc;
+        }, {});
+
+        setProviderStatus({
+          mock: true,
+          openai: Boolean(statusMap.openai),
+          gemini: Boolean(statusMap.gemini),
+          claude: Boolean(statusMap.claude),
+          mistral: Boolean(statusMap.mistral)
+        });
+      })
+      .catch(() => {
+        setProviderStatus({ mock: true, openai: false, gemini: false, claude: false, mistral: false });
+      });
   }, []);
 
   useEffect(() => {
@@ -67,6 +95,7 @@ export function AdminDashboard() {
   const evaluate = async (job) => {
     setError("");
     setMessage("");
+    setIsEvaluating(true);
 
     try {
       const result = await api.post(`/applications/job/${job.id}/evaluate`, {
@@ -74,11 +103,20 @@ export function AdminDashboard() {
       });
       setSelectedJob(job);
       setApplications(result.applications);
-      setMessage(
-        `Ολοκληρώθηκε αξιολόγηση για ${result.applications.length} αιτήσεις με ${selectedProvider.toUpperCase()}.`
-      );
+
+      const apiErrorText = result.providerErrors?.[0]?.message;
+      if (apiErrorText) {
+        setError(`Το API ${selectedProvider.toUpperCase()} απέτυχε: ${apiErrorText}`);
+        setMessage("Η αξιολόγηση ολοκληρώθηκε με fallback heuristic λόγω σφάλματος provider.");
+      } else {
+        setMessage(
+          `Ολοκληρώθηκε αξιολόγηση για ${result.applications.length} αιτήσεις με ${selectedProvider.toUpperCase()}.`
+        );
+      }
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsEvaluating(false);
     }
   };
 
@@ -114,9 +152,16 @@ export function AdminDashboard() {
         </Stack>
       </Paper>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={5}>
-          <Stack spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "420px minmax(0, 1fr)" },
+          gap: 3,
+          alignItems: "start"
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Stack spacing={2} sx={{ minWidth: 0 }}>
             <Typography variant="h4">Οι Αγγελίες Μου</Typography>
             <TextField
               select
@@ -125,15 +170,31 @@ export function AdminDashboard() {
               onChange={(e) => setSelectedProvider(e.target.value)}
               fullWidth
             >
-              <MenuItem value="mock">Mock (λέξεις-κλειδιά)-pol</MenuItem>
-              <MenuItem value="openai">OpenAI (GPT)</MenuItem>
-              <MenuItem value="gemini">Google Gemini</MenuItem>
+              <MenuItem value="mock">Mock (λέξεις-κλειδιά)</MenuItem>
+              <MenuItem value="openai" disabled={!providerStatus.openai}>
+                OpenAI (GPT) {providerStatus.openai ? "" : "— δεν έχει κλειδί"}
+              </MenuItem>
+              <MenuItem value="gemini" disabled={!providerStatus.gemini}>
+                Google Gemini {providerStatus.gemini ? "" : "— δεν έχει κλειδί"}
+              </MenuItem>
+              <MenuItem value="claude" disabled={!providerStatus.claude}>
+                Anthropic Claude {providerStatus.claude ? "" : "— δεν έχει κλειδί"}
+              </MenuItem>
+              <MenuItem value="mistral" disabled={!providerStatus.mistral}>
+                Mistral {providerStatus.mistral ? "" : "— δεν έχει κλειδί"}
+              </MenuItem>
             </TextField>
+            {!providerStatus[selectedProvider] && (
+              <Alert severity="warning">
+                Το {selectedProvider.toUpperCase()} δεν έχει διαμορφωμένο API key. Θα χρησιμοποιηθεί fallback heuristic.
+              </Alert>
+            )}
             {jobs.map((job) => (
               <Card
                 key={job.id}
                 sx={{
                   cursor: "pointer",
+                  minWidth: 0,
                   border:
                     selectedJob?.id === job.id
                       ? "2px solid #bb5a04"
@@ -141,8 +202,10 @@ export function AdminDashboard() {
                 }}
                 onClick={() => setSelectedJob(job)}
               >
-                <CardContent>
-                  <Typography variant="h5">{job.title}</Typography>
+                <CardContent sx={{ minWidth: 0 }}>
+                  <Typography variant="h5" sx={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                    {job.title}
+                  </Typography>
                   <Typography color="text.secondary" sx={{ mt: 1 }}>
                     Αιτήσεις: {job.applications}
                   </Typography>
@@ -153,17 +216,19 @@ export function AdminDashboard() {
                       e.stopPropagation();
                       evaluate(job);
                     }}
+                    disabled={isEvaluating}
+                    startIcon={isEvaluating ? <CircularProgress size={16} color="inherit" /> : null}
                   >
-                    Έλεγχος / Scoring
+                    {isEvaluating ? "Γίνεται αξιολόγηση..." : "Έλεγχος / Scoring"}
                   </Button>
                 </CardContent>
               </Card>
             ))}
           </Stack>
-        </Grid>
+        </Box>
 
-        <Grid item xs={12} md={7}>
-          <Paper sx={{ p: 3, minHeight: 420 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Paper sx={{ p: 3, minHeight: 420, minWidth: 0 }}>
             <Stack spacing={2}>
               <Typography variant="h4">
                 {selectedJob ? `Αιτήσεις για: ${selectedJob.title}` : "Επίλεξε αγγελία"}
@@ -216,8 +281,8 @@ export function AdminDashboard() {
               ))}
             </Stack>
           </Paper>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </Stack>
   );
 }
